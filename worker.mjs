@@ -32,7 +32,15 @@ export default {async fetch(request,env){
  const url=new URL(request.url),path=url.pathname;
  if(request.method==='GET'&&path==='/')return html(HTML);
  if(request.method==='GET'&&path==='/setup')return html(SETUP);
- if(request.method==='GET'&&path==='/health')return json({ok:!!(env.TELEGRAM_BOT_TOKEN&&staffConfigured(env))});
+ if(request.method==='GET'&&path==='/health'){
+  if(!env.TELEGRAM_BOT_TOKEN||!staffConfigured(env))return json({ok:false,stage:'configuration',tokenConfigured:!!env.TELEGRAM_BOT_TOKEN,staffChatConfigured:staffConfigured(env)});
+  try{
+   const me=await telegram(env,'getMe',{});
+   const chat=await telegram(env,'getChat',{chat_id:env.STAFF_CHAT_ID});
+   const member=await telegram(env,'getChatMember',{chat_id:env.STAFF_CHAT_ID,user_id:me.id});
+   return json({ok:true,bot:'@'+me.username,chatType:chat.type,chatTitle:chat.title||'',memberStatus:member.status,canSend:member.status!=='left'&&member.status!=='kicked'&&!(member.status==='restricted'&&(!member.is_member||!member.can_send_messages))});
+  }catch{return json({ok:false,stage:'telegram_connection'});}
+ }
  if(request.method!=='POST'||!['/submit','/setup','/telegram'].includes(path))return json({ok:false},404);
  if(!env.TELEGRAM_BOT_TOKEN)return json({ok:false,error:'not_configured'},503);
  if(path!=='/telegram'&&request.headers.get('origin')!==url.origin)return json({ok:false,error:'origin'},403);
