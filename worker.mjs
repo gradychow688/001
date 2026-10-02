@@ -1,7 +1,9 @@
 export const day = (offset=0) => new Date(Date.now()+25200000+offset*86400000).toISOString().slice(0,10);
 const enc=new TextEncoder();
 const BOT_USERNAME='SmartLoanCambodiabot';
-const staffConfigured=env=>/^-\d+$/.test(env.STAFF_CHAT_ID||'');
+const CURRENT_STAFF_CHAT_ID='-1004332934322';
+const staffChatId=env=>CURRENT_STAFF_CHAT_ID||staffChatId(env);
+const staffConfigured=env=>/^-\d+$/.test(staffChatId(env)||'');
 const hex=b=>Array.from(new Uint8Array(b),v=>v.toString(16).padStart(2,'0')).join('');
 async function mac(key,value){const k=await crypto.subtle.importKey('raw',typeof key==='string'?enc.encode(key):key,{name:'HMAC',hash:'SHA-256'},false,['sign']);return crypto.subtle.sign('HMAC',k,enc.encode(value));}
 function equal(a,b){if(typeof a!=='string'||a.length!==b.length)return false;let n=0;for(let i=0;i<a.length;i++)n|=a.charCodeAt(i)^b.charCodeAt(i);return n===0;}
@@ -36,9 +38,9 @@ export default {async fetch(request,env){
   if(!env.TELEGRAM_BOT_TOKEN||!staffConfigured(env))return json({ok:false,stage:'configuration',tokenConfigured:!!env.TELEGRAM_BOT_TOKEN,staffChatConfigured:staffConfigured(env)});
   try{
    const me=await telegram(env,'getMe',{});
-   const chat=await telegram(env,'getChat',{chat_id:env.STAFF_CHAT_ID});
-   const member=await telegram(env,'getChatMember',{chat_id:env.STAFF_CHAT_ID,user_id:me.id});
-   if(url.searchParams.get('send')==='1')await telegram(env,'sendMessage',{chat_id:env.STAFF_CHAT_ID,text:'SAMBOR FINANCE system test — Telegram delivery is working. No customer data included.'});
+   const chat=await telegram(env,'getChat',{chat_id:staffChatId(env)});
+   const member=await telegram(env,'getChatMember',{chat_id:staffChatId(env),user_id:me.id});
+   if(url.searchParams.get('send')==='1')await telegram(env,'sendMessage',{chat_id:staffChatId(env),text:'SAMBOR FINANCE system test — Telegram delivery is working. No customer data included.'});
    return json({ok:true,bot:'@'+me.username,chatType:chat.type,chatTitle:chat.title||'',memberStatus:member.status,canSend:member.status!=='left'&&member.status!=='kicked'&&!(member.status==='restricted'&&(!member.is_member||!member.can_send_messages)),testSent:url.searchParams.get('send')==='1'});
   }catch(e){return json({ok:false,stage:'telegram_connection',telegramCode:e.telegramCode||null,telegramDescription:e.telegramDescription||'Connection or timeout error',migrateToChatId:e.migrateToChatId||null});}
  }
@@ -50,11 +52,11 @@ export default {async fetch(request,env){
   if(!equal(request.headers.get('authorization'),`Bearer ${env.TELEGRAM_BOT_TOKEN}`))return json({ok:false,error:'unauthorized'},401);
   const me=await telegram(env,'getMe',{});
   if(me.username?.toLowerCase()!==BOT_USERNAME.toLowerCase())return json({ok:false,error:'wrong_bot'},400);
-  if(env.STAFF_CHAT_ID&&!staffConfigured(env))return json({ok:false,error:'chat_id'},400);
+  if(staffChatId(env)&&!staffConfigured(env))return json({ok:false,error:'chat_id'},400);
   if(staffConfigured(env)){
-   const chat=await telegram(env,'getChat',{chat_id:env.STAFF_CHAT_ID});
+   const chat=await telegram(env,'getChat',{chat_id:staffChatId(env)});
    if(!['group','supergroup'].includes(chat.type))return json({ok:false,error:'chat_id'},400);
-   const member=await telegram(env,'getChatMember',{chat_id:env.STAFF_CHAT_ID,user_id:me.id});
+   const member=await telegram(env,'getChatMember',{chat_id:staffChatId(env),user_id:me.id});
    if(['left','kicked'].includes(member.status)||(member.status==='restricted'&&(!member.is_member||!member.can_send_messages))||(member.status==='member'&&chat.permissions?.can_send_messages===false))return json({ok:false,error:'chat_permission'},400);
   }
   await telegram(env,'setWebhook',{url:url.origin+'/telegram',secret_token:hex(await mac(env.TELEGRAM_BOT_TOKEN,'webhook')),allowed_updates:['message']});
@@ -75,7 +77,7 @@ export default {async fetch(request,env){
  const fields=['name','phone','location','customerType','amount','purpose','income','duration','appointmentDate','appointmentTime','note','language'];
  const ref='SF-'+hex(await mac(env.TELEGRAM_BOT_TOKEN,JSON.stringify(fields.map(k=>d[k])))).slice(0,12).toUpperCase();
  const text=['📋 预约申请 / APPOINTMENT '+ref,`姓名 / Name: ${d.name}`,`电话 / Phone: ${d.phone}`,`地区 / Area: ${d.location}`,`类型 / Type: ${d.customerType}`,`需要金额 / Amount USD: ${d.amount}`,`用途 / Purpose: ${d.purpose}`,`${d.customerType==='employee'?'工资 / Salary':'营业额 / Turnover'} USD/month: ${d.income}`,`年资 / Duration: ${d.duration}`,`预约 / Requested: ${d.appointmentDate} ${d.appointmentTime} (Cambodia UTC+7)`,`备注 / Note: ${d.note||'-'}`,`语言 / Language: ${d.language}`,'来源 / Source: Web application','已同意资料用于咨询及联系 / Contact consent received','待工作人员联系确认；不是贷款批准。','相同编号请作为同一申请处理 / Same reference = same request.'].join('\n');
- await telegram(env,'sendMessage',{chat_id:env.STAFF_CHAT_ID,text,protect_content:true});
+ await telegram(env,'sendMessage',{chat_id:staffChatId(env),text,protect_content:true});
  return json({ok:true,ref});
  }catch{return json({ok:false,error:'delivery_failed'},502);}
 }};
