@@ -40,8 +40,7 @@ export default {async fetch(request,env){
    const me=await telegram(env,'getMe',{});
    const chat=await telegram(env,'getChat',{chat_id:staffChatId(env)});
    const member=await telegram(env,'getChatMember',{chat_id:staffChatId(env),user_id:me.id});
-   if(url.searchParams.get('send')==='1')await telegram(env,'sendMessage',{chat_id:staffChatId(env),text:'SAMBOR FINANCE system test — Telegram delivery is working. No customer data included.'});
-   return json({ok:true,bot:'@'+me.username,chatType:chat.type,chatTitle:chat.title||'',memberStatus:member.status,canSend:member.status!=='left'&&member.status!=='kicked'&&!(member.status==='restricted'&&(!member.is_member||!member.can_send_messages)),testSent:url.searchParams.get('send')==='1'});
+   return json({ok:true,bot:'@'+me.username,chatType:chat.type,chatTitle:chat.title||'',memberStatus:member.status,canSend:member.status!=='left'&&member.status!=='kicked'&&!(member.status==='restricted'&&(!member.is_member||!member.can_send_messages))});
   }catch(e){return json({ok:false,stage:'telegram_connection',telegramCode:e.telegramCode||null,telegramDescription:e.telegramDescription||'Connection or timeout error',migrateToChatId:e.migrateToChatId||null});}
  }
  if(request.method!=='POST'||!['/submit','/setup','/telegram'].includes(path))return json({ok:false},404);
