@@ -26,7 +26,7 @@ export function validate(d){
 const headers={'cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer'};
 function json(d,status=200){return new Response(JSON.stringify(d),{status,headers:{...headers,'content-type':'application/json'}});}
 function html(s){return new Response(s,{headers:{...headers,'content-type':'text/html; charset=utf-8','content-security-policy':"default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'"}});}
-async function telegram(env,method,body){const r=await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(12000)});const d=await r.json();if(!r.ok||!d.ok)throw Error('telegram');return d.result;}
+async function telegram(env,method,body){const r=await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(12000)});const d=await r.json();if(!r.ok||!d.ok){const e=Error('telegram');e.telegramCode=d.error_code||r.status;e.telegramDescription=String(d.description||'Telegram API request failed').slice(0,240);throw e;}return d.result;}
 async function body(request){const s=await request.text();if(enc.encode(s).length>20000)throw Error('size');return JSON.parse(s);}
 export default {async fetch(request,env){
  const url=new URL(request.url),path=url.pathname;
@@ -40,7 +40,7 @@ export default {async fetch(request,env){
    const member=await telegram(env,'getChatMember',{chat_id:env.STAFF_CHAT_ID,user_id:me.id});
    if(url.searchParams.get('send')==='1')await telegram(env,'sendMessage',{chat_id:env.STAFF_CHAT_ID,text:'SAMBOR FINANCE system test — Telegram delivery is working. No customer data included.'});
    return json({ok:true,bot:'@'+me.username,chatType:chat.type,chatTitle:chat.title||'',memberStatus:member.status,canSend:member.status!=='left'&&member.status!=='kicked'&&!(member.status==='restricted'&&(!member.is_member||!member.can_send_messages)),testSent:url.searchParams.get('send')==='1'});
-  }catch{return json({ok:false,stage:'telegram_connection'});}
+  }catch(e){return json({ok:false,stage:'telegram_connection',telegramCode:e.telegramCode||null,telegramDescription:e.telegramDescription||'Connection or timeout error'});}
  }
  if(request.method!=='POST'||!['/submit','/setup','/telegram'].includes(path))return json({ok:false},404);
  if(!env.TELEGRAM_BOT_TOKEN)return json({ok:false,error:'not_configured'},503);
